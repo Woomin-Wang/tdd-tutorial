@@ -1,52 +1,43 @@
 package commerce.command.api.controller;
 
-import commerce.Seller;
-import commerce.SellerRepository;
+import commerce.Shopper;
+import commerce.ShopperRepository;
 import commerce.command.api.JwtKeyHolder;
-import commerce.command.query.IssueSellerToken;
+import commerce.command.query.IssueShopperToken;
 import commerce.result.AccessTokenCarrier;
 import io.jsonwebtoken.Jwts;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.crypto.spec.SecretKeySpec;
-import java.util.Optional;
-
 @RestController
-public record SellerIssueTokenController(
-        SellerRepository repository,
+public record ShopperIssueTokenController(
+        ShopperRepository repository,
         PasswordEncoder passwordEncoder,
-        JwtKeyHolder jwtKeyHolder
-) {
+        JwtKeyHolder jwtKeyHolder) {
 
-    @PostMapping("/seller/issueToken")
-    ResponseEntity<?> issueTokens(@RequestBody IssueSellerToken query) {
-
+    @PostMapping("/shopper/issueToken")
+    ResponseEntity<?> issueToken(@RequestBody IssueShopperToken query) {
         return repository
                 .findByEmail(query.email())
-                .filter(seller -> passwordEncoder.matches(
+                .filter(shopper -> passwordEncoder.matches(
                         query.password(),
-                        seller.getHashedPassword()))
+                        shopper.getHashedPassword()
+                ))
                 .map(this::composeToken)
                 .map(AccessTokenCarrier::new)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
-    private Optional<Seller> getSeller(IssueSellerToken query) {
-        Optional<Seller> result = repository.findByEmail(query.email());
-        return result;
-    }
-
-    private String composeToken(Seller seller) {
+    private String composeToken(Shopper shopper) {
         return Jwts
                 .builder()
-                .setSubject(seller.getId().toString())
+                .setSubject(shopper.getId().toString())
                 .signWith(jwtKeyHolder.key())
                 .compact();
     }
 }
+

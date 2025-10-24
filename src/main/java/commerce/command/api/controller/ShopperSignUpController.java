@@ -1,8 +1,8 @@
 package commerce.command.api.controller;
 
-import commerce.Seller;
-import commerce.SellerRepository;
-import commerce.command.CreateSellerCommand;
+import commerce.Shopper;
+import commerce.ShopperRepository;
+import commerce.command.CreateShopperCommand;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,35 +14,30 @@ import java.util.UUID;
 import static commerce.UserPropertyValidator.*;
 
 @RestController
-public record SellerSignUpController(
+public record ShopperSignUpController(
         PasswordEncoder passwordEncoder,
-        SellerRepository repository) {
+        ShopperRepository repository) {
 
-    @PostMapping("/seller/signUp")
-    ResponseEntity<?> signUp(@RequestBody CreateSellerCommand command) {
-
+    @PostMapping("/shopper/signUp")
+    ResponseEntity<?> signUp(@RequestBody CreateShopperCommand command) {
         if (isCommandValid(command) == false) {
             return ResponseEntity.badRequest().build();
         }
 
+        var shopper = new Shopper();
         UUID id = UUID.randomUUID();
-        String hashedPassword = passwordEncoder.encode(command.password());
-
-        var seller = new Seller();
-        seller.setId(id);
-        seller.setEmail(command.email());
-        seller.setUsername(command.username());
-        seller.setHashedPassword(hashedPassword);
-        repository.save(seller);
+        shopper.setId(id);
+        shopper.setEmail(command.email());
+        shopper.setUsername(command.username());
+        shopper.setHashedPassword(passwordEncoder.encode(command.password()));
+        repository.save(shopper);
 
         return ResponseEntity.noContent().build();
     }
 
-    private static boolean isCommandValid(CreateSellerCommand command) {
+    private static boolean isCommandValid(CreateShopperCommand command) {
         return isEmailValid(command.email())
                 && isUsernameValid(command.username())
                 && isPasswordValid(command.password());
     }
 }
-
-

@@ -9,11 +9,11 @@ import java.util.UUID;
 @Entity
 @Getter
 @Setter
-public class Seller {
+public class Shopper {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long dataKey;
+    private Long dateKey;
 
     @Column(unique = true)
     private UUID id;
@@ -26,4 +26,5 @@ public class Seller {
 
     @Column(length = 1000)
     private String hashedPassword;
+
 }
