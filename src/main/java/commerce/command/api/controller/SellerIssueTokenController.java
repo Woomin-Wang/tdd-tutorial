@@ -46,6 +46,7 @@ public record SellerIssueTokenController(
         return Jwts
                 .builder()
                 .setSubject(seller.getId().toString())
+                .claim("scp", "seller")
                 .signWith(jwtKeyHolder.key())
                 .compact();
     }
