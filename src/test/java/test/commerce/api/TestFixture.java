@@ -1,18 +1,25 @@
 package test.commerce.api;
 
+import commerce.ProductRepository;
 import commerce.command.CreateSellerCommand;
 import commerce.command.CreateShopperCommand;
 import commerce.command.RegisterProductCommand;
+import commerce.command.api.controller.view.ProductView;
+import commerce.command.api.controller.view.SellerMeView;
 import commerce.command.query.IssueSellerToken;
 import commerce.command.query.IssueShopperToken;
 import commerce.result.AccessTokenCarrier;
+import commerce.result.PageCarrier;
 import org.springframework.boot.test.web.client.LocalHostUriTemplateHandler;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.env.Environment;
+import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -23,13 +30,18 @@ import static test.commerce.PasswordGenerator.generatePassword;
 import static test.commerce.RegisterProductCommandGenerator.generateRegisterProductCommand;
 import static test.commerce.UsernameGenerator.generateUsername;
 
-public record TestFixture(TestRestTemplate client) {
+public record TestFixture(
+        TestRestTemplate client,
+        ProductRepository productRepository) {
 
-    public static TestFixture create(Environment environment) {
+    public static TestFixture create(
+            Environment environment,
+            ProductRepository productRepository
+    ) {
         TestRestTemplate client = new TestRestTemplate();
         LocalHostUriTemplateHandler uriTemplateHandler = new LocalHostUriTemplateHandler(environment);
         client.setUriTemplateHandler(uriTemplateHandler);
-        return new TestFixture(client);
+        return new TestFixture(client, productRepository);
     }
 
     public void createShopper(String email, String username, String password) {
@@ -119,5 +131,40 @@ public record TestFixture(TestRestTemplate client) {
 
     public List<UUID> registerProducts() {
         return List.of(registerProduct(), registerProduct(), registerProduct());
+    }
+
+    public void deleteAllProducts() {
+        productRepository.deleteAll();
+    }
+
+    public List<UUID> registerProducts(int count) {
+        ArrayList<UUID> ids = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(registerProduct());
+        }
+        return ids;
+    }
+
+    public SellerMeView getSeller() {
+        return client.getForObject("/seller/me", SellerMeView.class);
+    }
+
+    public String consumeProductPage() {
+        ResponseEntity<PageCarrier<ProductView>> response = client.exchange(
+                RequestEntity.get("/shopper/products").build(),
+                new ParameterizedTypeReference<>() {
+                }
+        );
+        return requireNonNull(response.getBody()).continuationToken();
+    }
+
+    public String consumeTwoProductPage() {
+        String token = consumeProductPage();
+        ResponseEntity<PageCarrier<ProductView>> response = client.exchange(
+                RequestEntity.get("/shopper/products?continuationToken=" + token).build(),
+                new ParameterizedTypeReference<>() {
+                }
+        );
+        return requireNonNull(requireNonNull(response.getBody()).continuationToken());
     }
 }

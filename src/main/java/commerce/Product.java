@@ -12,6 +12,7 @@ import java.util.UUID;
 @Entity
 @Getter
 @Setter
+@Table(indexes = @Index(columnList = "sellerId"))
 public class Product {
 
     @Id
