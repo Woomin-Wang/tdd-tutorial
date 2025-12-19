@@ -5,19 +5,20 @@ import commerce.ProductRepository;
 import commerce.command.RegisterProductCommand;
 import commerce.command.api.controller.view.ArrayCarrier;
 import commerce.command.api.controller.view.SellerProductView;
-import commerce.commandmodel.InvalidCommandException;
-import org.apache.coyote.Response;
+import commerce.command.query.FindSellerProduct;
+import commerce.commandmodel.RegisterProductCommandExecutor;
+import commerce.querymodel.FindSellerProductQueryProcessor;
+import commerce.querymodel.ProductMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.security.Principal;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 
-import static java.time.ZoneOffset.UTC;
 import static java.util.Comparator.reverseOrder;
 
 @RestController
@@ -28,46 +29,33 @@ public record SellerProductController(ProductRepository repository) {
             @RequestBody RegisterProductCommand command,
             Principal user
     ) {
-        if (isValidUri(command.imageUri()) == false) {
-            throw new InvalidCommandException();
-        }
-
         UUID id = UUID.randomUUID();
-        Product product = new Product();
-        product.setId(id);
-        product.setSellerId(UUID.fromString(user.getName()));
-
-        product.setName(command.name());
-        product.setImageUri(command.imageUri());
-        product.setDescription(command.description());
-        product.setPriceAmount(command.priceAmount());
-        product.setStockQuantity(command.stockQuantity());
-        product.setRegisteredTimeUtc(LocalDateTime.now(UTC));
-
-        repository.save(product);
+        var executor = new RegisterProductCommandExecutor(repository::save);
+        executor.execute(id, UUID.fromString(user.getName()), command);
         URI location = URI.create("/seller/products/" + id);
         return ResponseEntity.created(location).build();
     }
 
-    private boolean isValidUri(String value) {
-        try {
-            URI uri = URI.create(value);
-            return uri.getHost() != null;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+    private static UUID getSellerId(Principal user) {
+        return UUID.fromString(user.getName());
     }
 
     @GetMapping("/seller/products/{id}")
     ResponseEntity<?> findProduct(@PathVariable UUID id, Principal user) {
         UUID sellerId = UUID.fromString(user.getName());
+        Function<UUID, Optional<Product>> findProduct = repository::findById;
+        var processor = new FindSellerProductQueryProcessor(findProduct);
+        var query = new FindSellerProduct(sellerId, id);
 
-        return repository
-                .findById(id)
-                .filter(product -> product.getSellerId().equals(sellerId))
-                .map(SellerProductController::convertToView)
+        return process(processor, query)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private static Optional<SellerProductView> process(FindSellerProductQueryProcessor processor, FindSellerProduct query) {
+        return processor.findProduct.apply(query.productId())
+                .filter(product -> product.getSellerId().equals(query.sellerId()))
+                .map(ProductMapper::convertToView);
     }
 
     @GetMapping("/seller/products")
@@ -77,20 +65,8 @@ public record SellerProductController(ProductRepository repository) {
                 .findBySellerId(sellerId)
                 .stream()
                 .sorted(Comparator.comparing(Product::getRegisteredTimeUtc, reverseOrder()))
-                .map(SellerProductController::convertToView)
+                .map(ProductMapper::convertToView)
                 .toArray(SellerProductView[]::new);
         return ResponseEntity.ok(new ArrayCarrier<SellerProductView>(items));
-    }
-
-    private static SellerProductView convertToView(Product product) {
-        return new SellerProductView(
-                product.getId(),
-                product.getName(),
-                product.getImageUri(),
-                product.getDescription(),
-                product.getPriceAmount(),
-                product.getStockQuantity(),
-                product.getRegisteredTimeUtc()
-        );
     }
 }
